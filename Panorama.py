@@ -4,6 +4,9 @@ import plotly.graph_objects as go
 import json
 import numpy as np
 
+# Configuração do modo amplo
+st.set_page_config(layout="wide", page_title="Panorama da Saúde Mental", page_icon="🌵", initial_sidebar_state="expanded")
+
 # Carregar os dados
 data = pd.read_csv('BaseGeral.csv')
 
@@ -158,7 +161,8 @@ if secondary_filter:
             y=list(secondary_percentages.values()),
             text=[f"{value:.2f}%" for value in secondary_percentages.values()],
             textposition='auto',
-            name='Porcentagem'
+            name='Porcentagem',
+            marker_color="#368a50"  # Definindo a cor das barras
         ))
         
         # Adicionar texto do ICASM
