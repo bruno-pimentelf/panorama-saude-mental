@@ -22,23 +22,33 @@ st.sidebar.header("Filtros de Respostas")
 
 # Adicionar filtros para todas as colunas especificadas
 filtros = {
-    'religion': 'Religião',
     'gender': 'Gênero',
-    'educational_level': 'Nível Educacional',
     'age': 'Faixa Etária',
-    'family_income': 'Renda Familiar',
-    'receive_bolsa_familia': 'Recebe Bolsa Família',
     'race': 'Raça',
-    'ever_thought_you_should_stop_drinking': 'Já pensou que deveria parar de beber',
-    'marital_status': 'Estado Civil',
+    'region': 'Região',
+    'state': 'Estado',
+    'family_income': 'Renda Familiar',
+    'religion': 'Religião',
     'gender_identity': 'Identidade de Gênero',
+    'educational_level': 'Nível Educacional',
+    'receive_bolsa_familia': 'Recebe Bolsa Família',
+    'employment': 'Emprego',
+    'who_is_primarily_responsible_for_supporting_your_home': 'Responsável Principal pelo Sustento do Lar',
+    'employed_or_looking_for_employment': 'Empregado ou Procurando Emprego',
+    'sexual_orientation': 'Orientação Sexual',
+    'marital_status': 'Estado Civil',
     'have_kids': 'Tem Filhos',
     'age_of_youngest_kid': 'Idade do Filho Mais Novo',
-    'sexual_orientation': 'Orientação Sexual',
-    'employed_or_looking_for_employment': 'Empregado ou Procurando Emprego',
-    'employment': 'Emprego',
+    'ever_thought_you_should_stop_drinking': 'Já pensou que deveria parar de beber',
     'are_you_a_person_with_disability': 'Pessoa com Deficiência',
-    'who_is_primarily_responsible_for_supporting_your_home': 'Responsável Principal pelo Sustento do Lar'
+}
+
+filtros_variaveis = {
+    'did_the_use_of_social_media_impact_mental_health': 'O uso de mídias sociais impactou sua saúde mental',
+    'had_negative_experiences': 'Experiências Negativas com o Uso de Mídias Sociais',
+    'when_started_using_social_networks': 'Quando começou a usar mídias sociais',
+    'content_format': 'Formato de Conteúdo Visto',
+    'what_time_of_the_day_do_use_social_media': 'Que horas do dia você usa mídias sociais',
 }
 
 # Função para extrair questões e opções de colunas JSON
@@ -65,7 +75,20 @@ for column in json_columns:
 
 # Criar filtros dinâmicos
 filtered_data = data.copy()
+
+# Módulo Fixo
+st.sidebar.subheader("Módulo Fixo")
 for col, label in filtros.items():
+    options = ['Todos'] + list(data[col].unique())
+    selected = st.sidebar.multiselect(label, options, default='Todos')
+    if 'Todos' not in selected:
+        filtered_data = filtered_data[filtered_data[col].isin(selected)]
+
+st.sidebar.divider()
+
+# Módulo Variável
+st.sidebar.subheader("Módulo Variável")
+for col, label in filtros_variaveis.items():
     options = ['Todos'] + list(data[col].unique())
     selected = st.sidebar.multiselect(label, options, default='Todos')
     if 'Todos' not in selected:
@@ -115,14 +138,14 @@ st.divider()
 
 # Adicionar seleção para o filtro secundário na tela principal
 st.subheader("Filtro Secundário")
-secondary_filter_options = list(filtros.values()) + [f"Questionário {col}" for col in json_columns]
+secondary_filter_options = list(filtros.values()) + list(filtros_variaveis.values()) + [f"Questionário {col}" for col in json_columns]
 secondary_filter = st.selectbox("Selecione o filtro secundário", [''] + secondary_filter_options)
 
 # Cálculo do filtro secundário
 if secondary_filter:
     try:
-        if secondary_filter in filtros.values():
-            secondary_column = [col for col, label in filtros.items() if label == secondary_filter][0]
+        if secondary_filter in filtros.values() or secondary_filter in filtros_variaveis.values():
+            secondary_column = [col for col, label in {**filtros, **filtros_variaveis}.items() if label == secondary_filter][0]
             secondary_options = filtered_data[secondary_column].unique()
             secondary_percentages = {}
             secondary_icasm = {}
