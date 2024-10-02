@@ -105,34 +105,40 @@ for column, questions in json_filters.items():
                               for item in json.loads(x.replace("'", '"')))
             )]
 
-# Função para calcular o ICASM de forma segura
-def calcular_icasm_seguro(df):
+# Adicionar seleção de métrica na tela principal
+st.subheader("Seleção de Métrica")
+metric_options = {
+    "ICASM": "atlas_mh_index",
+    "Vitalidade": "depression_index",
+    "Confiança": "confidence_index",
+    "Foco": "dysfunction_index"
+}
+selected_metric = st.selectbox("Escolha a métrica a ser exibida:", list(metric_options.keys()))
+
+# Função para calcular a métrica selecionada
+def calcular_metrica_seguro(df, metric_column):
     try:
-        return (df['atlas_mh_index'] * df['weight']).sum() / df['weight'].sum()
-    except ZeroDivisionError:
-        return np.nan
+        return (df[metric_column] * df['weight']).sum() / df['weight'].sum()
+    except Exception as e:
+        st.error(f"Erro ao calcular a métrica: {str(e)}")
+        return None
 
-# Função para exibir mensagem de erro de forma elegante
-def exibir_erro(mensagem):
-    st.error(f"Ops! Ocorreu um problema: {mensagem}")
-    st.info("Tente ajustar seus filtros ou selecionar diferentes opções.")
-
-# Cálculo da porcentagem ponderada e ICASM
+# Cálculo da porcentagem ponderada e métrica selecionada
 try:
     total_weight = data['weight'].sum()
     filtered_weight = filtered_data['weight'].sum()
     percentage = (filtered_weight / total_weight) * 100
-    icasm = calcular_icasm_seguro(filtered_data)
+    metric_value = calcular_metrica_seguro(filtered_data, metric_options[selected_metric])
 
     # Exibir resultados
     st.header("Resultados")
-    if np.isnan(percentage) or np.isnan(icasm):
-        exibir_erro("Não foi possível calcular os resultados com os filtros atuais.")
+    if np.isnan(percentage) or metric_value is None:
+        st.error("Não foi possível calcular os resultados com os filtros atuais.")
     else:
         st.markdown(f"<h4>Porcentagem de respondentes: {percentage:.2f}%</h4>", unsafe_allow_html=True)
-        st.markdown(f"<h4>ICASM dos respondentes: {round(icasm)}</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4>{selected_metric} dos respondentes: {metric_value:.2f}</h4>", unsafe_allow_html=True)
 except Exception as e:
-    exibir_erro(f"Erro ao calcular resultados: {str(e)}")
+    st.error(f"Erro ao calcular resultados: {str(e)}")
 
 st.divider()
 
@@ -141,6 +147,9 @@ st.subheader("Filtro Secundário")
 secondary_filter_options = list(filtros.values()) + list(filtros_variaveis.values()) + [f"Questionário {col}" for col in json_columns]
 secondary_filter = st.selectbox("Selecione o filtro secundário", [''] + secondary_filter_options)
 
+# Adicionar seleção de métrica para o filtro secundário
+secondary_metric = st.selectbox("Escolha a métrica para o filtro secundário:", list(metric_options.keys()), index=list(metric_options.keys()).index(selected_metric))
+
 # Cálculo do filtro secundário
 if secondary_filter:
     try:
@@ -148,18 +157,18 @@ if secondary_filter:
             secondary_column = [col for col, label in {**filtros, **filtros_variaveis}.items() if label == secondary_filter][0]
             secondary_options = filtered_data[secondary_column].unique()
             secondary_percentages = {}
-            secondary_icasm = {}
+            secondary_metric_values = {}
             for option in secondary_options:
                 secondary_filtered = filtered_data[filtered_data[secondary_column] == option]
                 secondary_weight = secondary_filtered['weight'].sum()
                 secondary_percentage = (secondary_weight / filtered_weight) * 100
                 secondary_percentages[option] = secondary_percentage
-                secondary_icasm[option] = (secondary_filtered['atlas_mh_index'] * secondary_filtered['weight']).sum() / secondary_weight
+                secondary_metric_values[option] = calcular_metrica_seguro(secondary_filtered, metric_options[secondary_metric])
         else:
             json_column = secondary_filter.split()[-1]
             secondary_options = []
             secondary_percentages = {}
-            secondary_icasm = {}
+            secondary_metric_values = {}
             for question in json_filters[json_column]:
                 for option in json_filters[json_column][question]:
                     if option != 'Todos':
@@ -170,7 +179,7 @@ if secondary_filter:
                         secondary_weight = secondary_filtered['weight'].sum()
                         secondary_percentage = (secondary_weight / filtered_weight) * 100
                         secondary_percentages[f"{question}: {option}"] = secondary_percentage
-                        secondary_icasm[f"{question}: {option}"] = (secondary_filtered['atlas_mh_index'] * secondary_filtered['weight']).sum() / secondary_weight
+                        secondary_metric_values[f"{question}: {option}"] = calcular_metrica_seguro(secondary_filtered, metric_options[secondary_metric])
                         secondary_options.append(f"{question}: {option}")
 
         st.subheader(f"Distribuição por {secondary_filter}")
@@ -185,15 +194,15 @@ if secondary_filter:
             text=[f"{value:.2f}%" for value in secondary_percentages.values()],
             textposition='auto',
             name='Porcentagem',
-            marker_color="#368a50"  # Definindo a cor das barras
+            marker_color="#368a50"
         ))
         
-        # Adicionar texto do ICASM
+        # Adicionar texto da métrica selecionada
         for i, (option, percentage) in enumerate(secondary_percentages.items()):
             fig.add_annotation(
                 x=option,
                 y=percentage,
-                text=f"ICASM: {round(secondary_icasm[option])}",
+                text=f"{secondary_metric}: {secondary_metric_values[option]:.2f}",
                 showarrow=False,
                 yshift=25
             )
@@ -212,8 +221,8 @@ if secondary_filter:
 
         # Exibir os dados em formato de texto
         for option in secondary_options:
-            st.write(f"**{option}:** {secondary_percentages[option]:.2f}% | ICASM: {round(secondary_icasm[option])}")
+            st.write(f"**{option}:** {secondary_percentages[option]:.2f}% | {secondary_metric}: {secondary_metric_values[option]:.2f}")
     except Exception as e:
-        exibir_erro(f"Erro ao processar o filtro secundário: {str(e)}")
+        st.error(f"Erro ao processar o filtro secundário: {str(e)}")
 
 st.divider()
