@@ -150,6 +150,9 @@ secondary_filter = st.selectbox("Selecione o filtro secundário", [''] + seconda
 # Adicionar seleção de métrica para o filtro secundário
 secondary_metric = st.selectbox("Escolha a métrica para o filtro secundário:", list(metric_options.keys()), index=list(metric_options.keys()).index(selected_metric))
 
+# Adicionar opção para inverter o gráfico
+inverter_grafico = st.checkbox("Inverter gráfico (métricas como barras principais)")
+
 # Cálculo do filtro secundário
 if secondary_filter:
     try:
@@ -187,34 +190,64 @@ if secondary_filter:
         # Criar o gráfico de barras
         fig = go.Figure()
         
-        # Adicionar barras
-        fig.add_trace(go.Bar(
-            x=list(secondary_percentages.keys()),
-            y=list(secondary_percentages.values()),
-            text=[f"{value:.1f}%" for value in secondary_percentages.values()],
-            textposition='auto',
-            name='Porcentagem',
-            marker_color="#368a50"
-        ))
-        
-        # Adicionar texto da métrica selecionada
-        for i, (option, percentage) in enumerate(secondary_percentages.items()):
-            fig.add_annotation(
-                x=option,
-                y=percentage,
-                text=f"{secondary_metric}: {secondary_metric_values[option]}",
-                showarrow=False,
-                yshift=25
+        if inverter_grafico:
+            # Métricas como barras principais
+            fig.add_trace(go.Bar(
+                x=list(secondary_percentages.keys()),
+                y=list(secondary_metric_values.values()),
+                text=[f"{value}" for value in secondary_metric_values.values()],
+                textposition='auto',
+                name=secondary_metric,
+                marker_color="#368a50"
+            ))
+            
+            # Adicionar texto da porcentagem
+            for i, (option, metric_value) in enumerate(secondary_metric_values.items()):
+                fig.add_annotation(
+                    x=option,
+                    y=metric_value,
+                    text=f"Porcentagem: {secondary_percentages[option]:.1f}%",
+                    showarrow=False,
+                    yshift=25
+                )
+            
+            # Configurar o layout
+            fig.update_layout(
+                title=f"Distribuição por {secondary_filter}",
+                xaxis_title=secondary_filter,
+                yaxis_title=secondary_metric,
+                bargap=0.2,
+                height=500
             )
-        
-        # Configurar o layout
-        fig.update_layout(
-            title=f"Distribuição por {secondary_filter}",
-            xaxis_title=secondary_filter,
-            yaxis_title="Porcentagem",
-            bargap=0.2,
-            height=500
-        )
+        else:
+            # Porcentagens como barras principais (código original)
+            fig.add_trace(go.Bar(
+                x=list(secondary_percentages.keys()),
+                y=list(secondary_percentages.values()),
+                text=[f"{value:.1f}%" for value in secondary_percentages.values()],
+                textposition='auto',
+                name='Porcentagem',
+                marker_color="#368a50"
+            ))
+            
+            # Adicionar texto da métrica selecionada
+            for i, (option, percentage) in enumerate(secondary_percentages.items()):
+                fig.add_annotation(
+                    x=option,
+                    y=percentage,
+                    text=f"{secondary_metric}: {secondary_metric_values[option]}",
+                    showarrow=False,
+                    yshift=25
+                )
+            
+            # Configurar o layout
+            fig.update_layout(
+                title=f"Distribuição por {secondary_filter}",
+                xaxis_title=secondary_filter,
+                yaxis_title="Porcentagem",
+                bargap=0.2,
+                height=500
+            )
         
         # Exibir o gráfico
         st.plotly_chart(fig)
