@@ -68,7 +68,7 @@ def get_json_questions_and_options(column):
     return {k: ['Todos'] + list(v) for k, v in questions.items()}
 
 # Adicionar filtros para colunas JSON
-json_columns = ['QSG12A', 'QSG12B', 'PHQ-9', 'during_last_weeks_how_many_times_you']
+json_columns = ['QSG12A', 'QSG12B', 'PHQ-9', 'during_last_weeks_how_many_times_you', 'how_much_do_you_agree_with_the_following_statementes']
 json_filters = {}
 for column in json_columns:
     json_filters[column] = get_json_questions_and_options(column)
@@ -98,10 +98,10 @@ for col, label in filtros_variaveis.items():
 for column, questions in json_filters.items():
     st.sidebar.subheader(f"Questionário {column}")
     for question, options in questions.items():
-        selected = st.sidebar.selectbox(question, options)
-        if selected != 'Todos':
+        selected = st.sidebar.multiselect(question, options, default='Todos')
+        if 'Todos' not in selected:
             filtered_data = filtered_data[filtered_data[column].apply(
-                lambda x: any(item['label'] == question and item['value'] == selected 
+                lambda x: any(item['label'] == question and item['value'] in selected 
                               for item in json.loads(x.replace("'", '"')))
             )]
 
@@ -130,7 +130,7 @@ try:
         exibir_erro("Não foi possível calcular os resultados com os filtros atuais.")
     else:
         st.markdown(f"<h4>Porcentagem de respondentes: {percentage:.2f}%</h4>", unsafe_allow_html=True)
-        st.markdown(f"<h4>ICASM dos respondentes: {icasm:.2f}</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4>ICASM dos respondentes: {round(icasm)}</h4>", unsafe_allow_html=True)
 except Exception as e:
     exibir_erro(f"Erro ao calcular resultados: {str(e)}")
 
@@ -193,7 +193,7 @@ if secondary_filter:
             fig.add_annotation(
                 x=option,
                 y=percentage,
-                text=f"ICASM: {secondary_icasm[option]:.2f}",
+                text=f"ICASM: {round(secondary_icasm[option])}",
                 showarrow=False,
                 yshift=25
             )
@@ -212,15 +212,8 @@ if secondary_filter:
 
         # Exibir os dados em formato de texto
         for option in secondary_options:
-            st.write(f"**{option}:** {secondary_percentages[option]:.2f}% | ICASM: {secondary_icasm[option]:.2f}")
+            st.write(f"**{option}:** {secondary_percentages[option]:.2f}% | ICASM: {round(secondary_icasm[option])}")
     except Exception as e:
         exibir_erro(f"Erro ao processar o filtro secundário: {str(e)}")
 
 st.divider()
-
-# Mostrar tabela de dados filtrados
-st.write("### Dados Filtrados")
-if filtered_data.empty:
-    st.warning("Nenhum dado encontrado com os filtros atuais.")
-else:
-    st.dataframe(filtered_data)
