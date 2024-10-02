@@ -118,7 +118,7 @@ selected_metric = st.selectbox("Escolha a métrica a ser exibida:", list(metric_
 # Função para calcular a métrica selecionada
 def calcular_metrica_seguro(df, metric_column):
     try:
-        return (df[metric_column] * df['weight']).sum() / df['weight'].sum()
+        return round((df[metric_column] * df['weight']).sum() / df['weight'].sum())
     except Exception as e:
         st.error(f"Erro ao calcular a métrica: {str(e)}")
         return None
@@ -135,8 +135,8 @@ try:
     if np.isnan(percentage) or metric_value is None:
         st.error("Não foi possível calcular os resultados com os filtros atuais.")
     else:
-        st.markdown(f"<h4>Porcentagem de respondentes: {percentage:.2f}%</h4>", unsafe_allow_html=True)
-        st.markdown(f"<h4>{selected_metric} dos respondentes: {metric_value:.2f}</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4>Porcentagem de respondentes: {percentage:.1f}%</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4>{selected_metric} dos respondentes: {metric_value}</h4>", unsafe_allow_html=True)
 except Exception as e:
     st.error(f"Erro ao calcular resultados: {str(e)}")
 
@@ -191,7 +191,7 @@ if secondary_filter:
         fig.add_trace(go.Bar(
             x=list(secondary_percentages.keys()),
             y=list(secondary_percentages.values()),
-            text=[f"{value:.2f}%" for value in secondary_percentages.values()],
+            text=[f"{value:.1f}%" for value in secondary_percentages.values()],
             textposition='auto',
             name='Porcentagem',
             marker_color="#368a50"
@@ -202,7 +202,7 @@ if secondary_filter:
             fig.add_annotation(
                 x=option,
                 y=percentage,
-                text=f"{secondary_metric}: {secondary_metric_values[option]:.2f}",
+                text=f"{secondary_metric}: {secondary_metric_values[option]}",
                 showarrow=False,
                 yshift=25
             )
@@ -221,7 +221,7 @@ if secondary_filter:
 
         # Exibir os dados em formato de texto
         for option in secondary_options:
-            st.write(f"**{option}:** {secondary_percentages[option]:.2f}% | {secondary_metric}: {secondary_metric_values[option]:.2f}")
+            st.write(f"**{option}:** {secondary_percentages[option]:.1f}% | {secondary_metric}: {secondary_metric_values[option]}")
     except Exception as e:
         st.error(f"Erro ao processar o filtro secundário: {str(e)}")
 
