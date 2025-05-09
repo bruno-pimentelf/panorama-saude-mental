@@ -8,10 +8,10 @@ import numpy as np
 st.set_page_config(layout="wide", page_title="Panorama da Saúde Mental", page_icon="🌵", initial_sidebar_state="expanded")
 
 # Carregar os dados
-data = pd.read_csv('BaseGeral.csv')
+data = pd.read_csv('DadosNovos.csv')
 
 # Título da aplicação
-st.title('Panorama da Saúde Mental -> 1º S 2024')
+st.title('Panorama da Saúde Mental -> 2º S 2024')
 
 # Adicionar logo do Cactus na sidebar
 st.sidebar.image('logo_cactus.png', width=200)
@@ -46,7 +46,7 @@ filtros_demografia = {
 
 filtros_socioeconomico = {
     'receive_bolsa_familia': 'Recebe Bolsa Família',
-    'employment': 'Emprego',
+    'occupation': 'Ocupação',
     'who_is_primarily_responsible_for_supporting_your_home': 'Responsável Principal pelo Sustento do Lar',
     'employed_or_looking_for_employment': 'Empregado ou Procurando Emprego'
 }
@@ -56,17 +56,16 @@ filtros_pessoal = {
     'marital_status': 'Estado Civil',
     'have_kids': 'Tem Filhos',
     'age_of_youngest_kid': 'Idade do Filho Mais Novo',
-    'ever_thought_you_should_stop_drinking': 'Já pensou que deveria parar de beber',
     'are_you_a_person_with_disability': 'Pessoa com Deficiência',
 }
 
 # Adicionar filtros para todas as colunas especificadas
 filtros_variaveis = {
-    'did_the_use_of_social_media_impact_mental_health': 'O uso de mídias sociais impactou sua saúde mental',
-    'had_negative_experiences': 'Experiências Negativas com o Uso de Mídias Sociais',
-    'when_started_using_social_networks': 'Quando começou a usar mídias sociais',
-    'content_format': 'Formato de Conteúdo Visto',
-    'what_time_of_the_day_do_use_social_media': 'Que horas do dia você usa mídias sociais'
+    'optimism_economic_growth_2025': 'Otimismo com Crescimento Econômico 2025',
+    'how_often_do_you_worry_about_climate_change': 'Frequência de Preocupação com Mudança Climática',
+    'are_you_more_or_less_worried': 'Mais ou Menos Preocupado',
+    'how_worried_are_you_about_next_gen': 'Nível de Preocupação com Próxima Geração',
+    'gravity_of_climate_change_impacts': 'Gravidade dos Impactos da Mudança Climática'
 }
 
 # Função para extrair questões e opções de colunas JSON
@@ -77,23 +76,34 @@ def get_json_questions_and_options(column):
             continue
         try:
             json_data = json.loads(item.replace("'", '"'))
-            for question in json_data:
-                if question is None:
-                    continue
-                label = question['label']
-                value = question['value']
-                if label not in questions:
-                    questions[label] = set()
-                questions[label].add(value)
+            if isinstance(json_data, list):
+                for question in json_data:
+                    if question is None:
+                        continue
+                    # Verifica se o item é um dicionário com label e value
+                    if isinstance(question, dict) and 'label' in question and 'value' in question:
+                        label = question['label']
+                        value = question['value']
+                        if label not in questions:
+                            questions[label] = set()
+                        questions[label].add(value)
+            # Alguns campos podem ser listas de strings sem estrutura de dicionário
+            elif isinstance(json_data, list) and all(isinstance(item, str) for item in json_data):
+                label = column  # Usa o nome da coluna como label
+                for value in json_data:
+                    if label not in questions:
+                        questions[label] = set()
+                    questions[label].add(value)
         except json.JSONDecodeError:
             continue
     return {k: ['Todos'] + sorted(list(v)) for k, v in questions.items()}
 
 # Adicionar filtros para colunas JSON
-json_columns = ['QSG12A', 'QSG12B', 'PHQ-9', 'during_last_weeks_how_many_times_you', 'how_much_do_you_agree_with_the_following_statementes', 'used_social_network_2ww']
+json_columns = ['QSG12A', 'QSG12B', 'PHQ-9', 'during_last_weeks_how_many_times_you', 'have_you_ever_felt_or_believe', 'who_should_lead_fight_against_climate_change', 'which_individual_actions_do_you_take', 'climate_anxiety']
 json_filters = {}
 for column in json_columns:
-    json_filters[column] = get_json_questions_and_options(column)
+    if column in data.columns:  # Verifica se a coluna existe no dataset
+        json_filters[column] = get_json_questions_and_options(column)
 
 # Criar filtros dinâmicos
 filtered_data = data.copy()
@@ -120,62 +130,66 @@ def ensure_todos(key):
 # Criar filtros usando accordions
 with st.sidebar.expander("📊 Dados Demográficos", expanded=False):
     for col, label in filtros_demografia.items():
-        options = ['Todos'] + list(data[col].unique())
-        selected = st.multiselect(
-            label, 
-            options, 
-            default='Todos', 
-            key=f"demo_{col}",
-            on_change=ensure_todos,
-            args=(f"demo_{col}",)
-        )
-        if 'Todos' not in selected:
-            filtered_data = filtered_data[filtered_data[col].isin(selected)]
+        if col in data.columns:
+            options = ['Todos'] + list(data[col].unique())
+            selected = st.multiselect(
+                label, 
+                options, 
+                default='Todos', 
+                key=f"demo_{col}",
+                on_change=ensure_todos,
+                args=(f"demo_{col}",)
+            )
+            if 'Todos' not in selected:
+                filtered_data = filtered_data[filtered_data[col].isin(selected)]
 
 with st.sidebar.expander("💰 Dados Socioeconômicos", expanded=False):
     for col, label in filtros_socioeconomico.items():
-        options = ['Todos'] + list(data[col].unique())
-        selected = st.multiselect(
-            label, 
-            options, 
-            default='Todos', 
-            key=f"socio_{col}",
-            on_change=ensure_todos,
-            args=(f"socio_{col}",)
-        )
-        if 'Todos' not in selected:
-            filtered_data = filtered_data[filtered_data[col].isin(selected)]
+        if col in data.columns:
+            options = ['Todos'] + list(data[col].unique())
+            selected = st.multiselect(
+                label, 
+                options, 
+                default='Todos', 
+                key=f"socio_{col}",
+                on_change=ensure_todos,
+                args=(f"socio_{col}",)
+            )
+            if 'Todos' not in selected:
+                filtered_data = filtered_data[filtered_data[col].isin(selected)]
 
 with st.sidebar.expander("👤 Dados Pessoais", expanded=False):
     for col, label in filtros_pessoal.items():
-        options = ['Todos'] + list(data[col].unique())
-        selected = st.multiselect(
-            label, 
-            options, 
-            default='Todos', 
-            key=f"pessoal_{col}",
-            on_change=ensure_todos,
-            args=(f"pessoal_{col}",)
-        )
-        if 'Todos' not in selected:
-            filtered_data = filtered_data[filtered_data[col].isin(selected)]
+        if col in data.columns:
+            options = ['Todos'] + list(data[col].unique())
+            selected = st.multiselect(
+                label, 
+                options, 
+                default='Todos', 
+                key=f"pessoal_{col}",
+                on_change=ensure_todos,
+                args=(f"pessoal_{col}",)
+            )
+            if 'Todos' not in selected:
+                filtered_data = filtered_data[filtered_data[col].isin(selected)]
 
 st.sidebar.divider()
 
 # Módulo Variável em accordion
-with st.sidebar.expander("📱 Módulo Variável - Mídias Sociais", expanded=False):
+with st.sidebar.expander("🌍 Módulo Variável - Mudanças Climáticas", expanded=False):
     for col, label in filtros_variaveis.items():
-        options = ['Todos'] + list(data[col].unique())
-        selected = st.multiselect(
-            label, 
-            options, 
-            default='Todos', 
-            key=f"var_{col}",
-            on_change=ensure_todos,
-            args=(f"var_{col}",)
-        )
-        if 'Todos' not in selected:
-            filtered_data = filtered_data[filtered_data[col].isin(selected)]
+        if col in data.columns:
+            options = ['Todos'] + list(data[col].unique())
+            selected = st.multiselect(
+                label, 
+                options, 
+                default='Todos', 
+                key=f"var_{col}",
+                on_change=ensure_todos,
+                args=(f"var_{col}",)
+            )
+            if 'Todos' not in selected:
+                filtered_data = filtered_data[filtered_data[col].isin(selected)]
 
 # Questionários em accordions separados
 for column, questions in json_filters.items():
@@ -189,10 +203,13 @@ for column, questions in json_filters.items():
                 on_change=ensure_todos,
                 args=(f"quest_{column}_{question}",)
             )
-            if 'Todos' not in selected:
+            if 'Todos' not in selected and column in data.columns:
                 filtered_data = filtered_data[filtered_data[column].apply(
-                    lambda x: isinstance(x, str) and any(item is not None and item['label'] == question and item['value'] in selected 
-                                                         for item in json.loads(x.replace("'", '"')) if x and not x.isspace())
+                    lambda x: isinstance(x, str) and x and not x.isspace() and any(
+                        isinstance(item, dict) and 'label' in item and 'value' in item and
+                        item['label'] == question and item['value'] in selected 
+                        for item in json.loads(x.replace("'", '"'))
+                    )
                 )]
 
 # Remover a seleção de métrica na tela principal
@@ -216,34 +233,49 @@ filtros_ativos = []
 
 # Verificar filtros demográficos
 for col, label in filtros_demografia.items():
-    selected = st.session_state.get(f"demo_{col}", [])
-    if selected and 'Todos' not in selected:
-        filtros_ativos.append(f"{label}: {', '.join(selected)}")
+    if col in data.columns:
+        selected = st.session_state.get(f"demo_{col}", [])
+        if selected and 'Todos' not in selected:
+            # Converter para string
+            selected_str = [str(s) for s in selected]
+            filtros_ativos.append(f"{label}: {', '.join(selected_str)}")
 
 # Verificar filtros socioeconômicos
 for col, label in filtros_socioeconomico.items():
-    selected = st.session_state.get(f"socio_{col}", [])
-    if selected and 'Todos' not in selected:
-        filtros_ativos.append(f"{label}: {', '.join(selected)}")
+    if col in data.columns:
+        selected = st.session_state.get(f"socio_{col}", [])
+        if selected and 'Todos' not in selected:
+            # Converter para string
+            selected_str = [str(s) for s in selected]
+            filtros_ativos.append(f"{label}: {', '.join(selected_str)}")
 
 # Verificar filtros pessoais
 for col, label in filtros_pessoal.items():
-    selected = st.session_state.get(f"pessoal_{col}", [])
-    if selected and 'Todos' not in selected:
-        filtros_ativos.append(f"{label}: {', '.join(selected)}")
+    if col in data.columns:
+        selected = st.session_state.get(f"pessoal_{col}", [])
+        if selected and 'Todos' not in selected:
+            # Converter para string
+            selected_str = [str(s) for s in selected]
+            filtros_ativos.append(f"{label}: {', '.join(selected_str)}")
 
 # Verificar filtros de variáveis
 for col, label in filtros_variaveis.items():
-    selected = st.session_state.get(f"var_{col}", [])
-    if selected and 'Todos' not in selected:
-        filtros_ativos.append(f"{label}: {', '.join(selected)}")
+    if col in data.columns:
+        selected = st.session_state.get(f"var_{col}", [])
+        if selected and 'Todos' not in selected:
+            # Converter para string
+            selected_str = [str(s) for s in selected]
+            filtros_ativos.append(f"{label}: {', '.join(selected_str)}")
 
 # Verificar filtros dos questionários
 for column, questions in json_filters.items():
-    for question in questions:
-        selected = st.session_state.get(f"quest_{column}_{question}", [])
-        if selected and 'Todos' not in selected:
-            filtros_ativos.append(f"{question}: {', '.join(selected)}")
+    if column in data.columns:
+        for question in questions:
+            selected = st.session_state.get(f"quest_{column}_{question}", [])
+            if selected and 'Todos' not in selected:
+                # Converter todos os valores para string antes de usar join
+                selected_str = [str(s) for s in selected]
+                filtros_ativos.append(f"{question}: {', '.join(selected_str)}")
 
 if filtros_ativos:
     for filtro in filtros_ativos:
@@ -279,7 +311,25 @@ st.divider()
 
 # Adicionar seleção para o filtro secundário na tela principal
 st.subheader("Filtro Secundário")
-secondary_filter_options = list(filtros_demografia.values()) + list(filtros_socioeconomico.values()) + list(filtros_pessoal.values()) + list(filtros_variaveis.values()) + [f"Questionário {col}" for col in json_columns]
+# Preparar lista de opções filtradas para incluir apenas colunas que existem no dataset
+filtros_disponiveis = {}
+for col, label in filtros_demografia.items():
+    if col in data.columns:
+        filtros_disponiveis[label] = col
+for col, label in filtros_socioeconomico.items():
+    if col in data.columns:
+        filtros_disponiveis[label] = col
+for col, label in filtros_pessoal.items():
+    if col in data.columns:
+        filtros_disponiveis[label] = col
+for col, label in filtros_variaveis.items():
+    if col in data.columns:
+        filtros_disponiveis[label] = col
+
+# Adicionar questionários existentes 
+questionnaires_available = [f"Questionário {col}" for col in json_columns if col in data.columns]
+
+secondary_filter_options = list(filtros_disponiveis.keys()) + questionnaires_available
 secondary_filter = st.selectbox("Selecione o filtro secundário", [''] + secondary_filter_options)
 
 # Criar duas colunas para as opções do gráfico
@@ -306,8 +356,8 @@ with col3:
 # Cálculo do filtro secundário
 if secondary_filter:
     try:
-        if secondary_filter in filtros_demografia.values() or secondary_filter in filtros_socioeconomico.values() or secondary_filter in filtros_pessoal.values() or secondary_filter in filtros_variaveis.values():
-            secondary_column = [col for col, label in {**filtros_demografia, **filtros_socioeconomico, **filtros_pessoal, **filtros_variaveis}.items() if label == secondary_filter][0]
+        if secondary_filter in filtros_disponiveis:
+            secondary_column = filtros_disponiveis[secondary_filter]
             secondary_options = filtered_data[secondary_column].unique()
             secondary_percentages = {}
             secondary_metric_values = {}
@@ -319,129 +369,147 @@ if secondary_filter:
                 secondary_metric_values[option] = calcular_metrica_seguro(secondary_filtered, metric_options[secondary_metric])
         else:
             json_column = secondary_filter.split()[-1]
-            secondary_options = []
-            secondary_percentages = {}
-            secondary_metric_values = {}
-            for question in json_filters[json_column]:
-                for option in json_filters[json_column][question]:
-                    if option != 'Todos':
-                        secondary_filtered = filtered_data[filtered_data[json_column].apply(
-                            lambda x: any(item['label'] == question and item['value'] == option 
-                                          for item in json.loads(x.replace("'", '"')))
-                        )]
-                        secondary_weight = secondary_filtered['weight'].sum()
-                        secondary_percentage = (secondary_weight / filtered_weight) * 100
-                        secondary_percentages[f"{question}: {option}"] = secondary_percentage
-                        secondary_metric_values[f"{question}: {option}"] = calcular_metrica_seguro(secondary_filtered, metric_options[secondary_metric])
-                        secondary_options.append(f"{question}: {option}")
+            if json_column in json_filters:
+                secondary_options = []
+                secondary_percentages = {}
+                secondary_metric_values = {}
+                for question in json_filters[json_column]:
+                    for option in json_filters[json_column][question]:
+                        if option != 'Todos':
+                            try:
+                                secondary_filtered = filtered_data[filtered_data[json_column].apply(
+                                    lambda x: isinstance(x, str) and any(
+                                        isinstance(item, dict) and 'label' in item and 'value' in item and
+                                        item['label'] == question and item['value'] == option 
+                                        for item in json.loads(x.replace("'", '"')) if x and not x.isspace()
+                                    )
+                                )]
+                                secondary_weight = secondary_filtered['weight'].sum()
+                                secondary_percentage = (secondary_weight / filtered_weight) * 100
+                                secondary_percentages[f"{question}: {option}"] = secondary_percentage
+                                secondary_metric_values[f"{question}: {option}"] = calcular_metrica_seguro(secondary_filtered, metric_options[secondary_metric])
+                                secondary_options.append(f"{question}: {option}")
+                            except Exception as e:
+                                st.error(f"Erro ao processar filtro secundário para {question}: {option}: {str(e)}")
+            else:
+                st.error(f"Coluna JSON '{json_column}' não encontrada no dataset.")
+                secondary_options = []
+                secondary_percentages = {}
+                secondary_metric_values = {}
 
-        st.subheader(f"Distribuição por {secondary_filter}")
-        
-        # Criar o gráfico de barras
-        fig = go.Figure()
-        
-        if inverter_grafico:
-            # Métricas como barras principais
-            fig.add_trace(go.Bar(
-                x=list(secondary_percentages.keys()) if orientacao == "Vertical" else list(secondary_metric_values.values()),
-                y=list(secondary_metric_values.values()) if orientacao == "Vertical" else list(secondary_percentages.keys()),
-                text=[f"{value}" for value in secondary_metric_values.values()],
-                textposition='auto',
-                name=secondary_metric,
-                marker_color=graph_color,
-                orientation='v' if orientacao == "Vertical" else 'h',
-                textfont=dict(size=14)
-            ))
+        # Só executa esta parte se houver opções secundárias para mostrar
+        if secondary_options:
+            st.subheader(f"Distribuição por {secondary_filter}")
             
-            # Ajustar posicionamento das anotações
-            for i, (option, metric_value) in enumerate(secondary_metric_values.items()):
-                y_position = metric_value if orientacao == "Vertical" else option
-                if orientacao == "Vertical":
-                    y_shift = 45
-                    x_shift = 0
-                else:
-                    y_shift = 0  # Remover deslocamento vertical no modo horizontal
-                    x_shift = 80
-                
-                fig.add_annotation(
-                    x=option if orientacao == "Vertical" else metric_value,
-                    y=y_position,
-                    text=f"Porcentagem: {secondary_percentages[option]:.1f}%",
-                    showarrow=False,
-                    yshift=y_shift,
-                    xshift=x_shift,
-                    font=dict(size=12),
-                    align='left' if orientacao == "Horizontal" else 'center'
-                )
-        else:
-            # Porcentagens como barras principais
-            fig.add_trace(go.Bar(
-                x=list(secondary_percentages.keys()) if orientacao == "Vertical" else list(secondary_percentages.values()),
-                y=list(secondary_percentages.values()) if orientacao == "Vertical" else list(secondary_percentages.keys()),
-                text=[f"{value:.1f}%" for value in secondary_percentages.values()],
-                textposition='auto',
-                name='Porcentagem',
-                marker_color=graph_color,
-                orientation='v' if orientacao == "Vertical" else 'h',
-                textfont=dict(size=14)
-            ))
+            # Criar o gráfico de barras
+            fig = go.Figure()
             
-            # Ajustar posicionamento das anotações
-            for i, (option, percentage) in enumerate(secondary_percentages.items()):
-                y_position = percentage if orientacao == "Vertical" else option
-                if orientacao == "Vertical":
-                    y_shift = 45
-                    x_shift = 0
-                else:
-                    y_shift = 0  # Remover deslocamento vertical no modo horizontal
-                    x_shift = 80
+            if inverter_grafico:
+                # Métricas como barras principais
+                fig.add_trace(go.Bar(
+                    x=list(secondary_percentages.keys()) if orientacao == "Vertical" else list(secondary_metric_values.values()),
+                    y=list(secondary_metric_values.values()) if orientacao == "Vertical" else list(secondary_percentages.keys()),
+                    text=[f"{value}" for value in secondary_metric_values.values()],
+                    textposition='auto',
+                    name=secondary_metric,
+                    marker_color=graph_color,
+                    orientation='v' if orientacao == "Vertical" else 'h',
+                    textfont=dict(size=14)
+                ))
                 
-                fig.add_annotation(
-                    x=option if orientacao == "Vertical" else percentage,
-                    y=y_position,
-                    text=f"{secondary_metric}: {secondary_metric_values[option]}",
-                    showarrow=False,
-                    yshift=y_shift,
-                    xshift=x_shift,
-                    font=dict(size=12),
-                    align='left' if orientacao == "Horizontal" else 'center'
+                # Ajustar posicionamento das anotações
+                for i, (option, metric_value) in enumerate(secondary_metric_values.items()):
+                    y_position = metric_value if orientacao == "Vertical" else option
+                    if orientacao == "Vertical":
+                        y_shift = 45
+                        x_shift = 0
+                    else:
+                        y_shift = 0  # Remover deslocamento vertical no modo horizontal
+                        x_shift = 80
+                    
+                    fig.add_annotation(
+                        x=option if orientacao == "Vertical" else metric_value,
+                        y=y_position,
+                        text=f"Porcentagem: {secondary_percentages[option]:.1f}%",
+                        showarrow=False,
+                        yshift=y_shift,
+                        xshift=x_shift,
+                        font=dict(size=12),
+                        align='left' if orientacao == "Horizontal" else 'center'
+                    )
+            else:
+                # Porcentagens como barras principais
+                fig.add_trace(go.Bar(
+                    x=list(secondary_percentages.keys()) if orientacao == "Vertical" else list(secondary_percentages.values()),
+                    y=list(secondary_percentages.values()) if orientacao == "Vertical" else list(secondary_percentages.keys()),
+                    text=[f"{value:.1f}%" for value in secondary_percentages.values()],
+                    textposition='auto',
+                    name='Porcentagem',
+                    marker_color=graph_color,
+                    orientation='v' if orientacao == "Vertical" else 'h',
+                    textfont=dict(size=14)
+                ))
+                
+                # Ajustar posicionamento das anotações
+                for i, (option, percentage) in enumerate(secondary_percentages.items()):
+                    y_position = percentage if orientacao == "Vertical" else option
+                    if orientacao == "Vertical":
+                        y_shift = 45
+                        x_shift = 0
+                    else:
+                        y_shift = 0  # Remover deslocamento vertical no modo horizontal
+                        x_shift = 80
+                    
+                    fig.add_annotation(
+                        x=option if orientacao == "Vertical" else percentage,
+                        y=y_position,
+                        text=f"{secondary_metric}: {secondary_metric_values[option]}",
+                        showarrow=False,
+                        yshift=y_shift,
+                        xshift=x_shift,
+                        font=dict(size=12),
+                        align='left' if orientacao == "Horizontal" else 'center'
+                    )
+            
+            # Configurar o layout
+            fig.update_layout(
+                title=f"Distribuição por {secondary_filter}",
+                xaxis_title=secondary_filter if orientacao == "Vertical" else (secondary_metric if inverter_grafico else "Porcentagem"),
+                yaxis_title=secondary_metric if inverter_grafico else "Porcentagem" if orientacao == "Vertical" else secondary_filter,
+                bargap=0.2,
+                height=altura_grafico,
+                plot_bgcolor='rgba(0,0,0,0)',  # Fundo transparente
+                paper_bgcolor='rgba(0,0,0,0)',  # Fundo do papel transparente
+                xaxis=dict(
+                    showgrid=mostrar_grade,
+                    gridwidth=1,
+                    gridcolor='rgba(128, 128, 128, 0.2)',  # Cinza semi-transparente
+                    zeroline=False,
+                    showline=True,
+                    linewidth=1,
+                    linecolor='rgba(128, 128, 128, 0.2)'
+                ),
+                yaxis=dict(
+                    showgrid=mostrar_grade,
+                    gridwidth=1,
+                    gridcolor='rgba(128, 128, 128, 0.2)',  # Cinza semi-transparente
+                    zeroline=False,
+                    showline=True,
+                    linewidth=1,
+                    linecolor='rgba(128, 128, 128, 0.2)'
                 )
-        
-        # Configurar o layout
-        fig.update_layout(
-            title=f"Distribuição por {secondary_filter}",
-            xaxis_title=secondary_filter if orientacao == "Vertical" else (secondary_metric if inverter_grafico else "Porcentagem"),
-            yaxis_title=secondary_metric if inverter_grafico else "Porcentagem" if orientacao == "Vertical" else secondary_filter,
-            bargap=0.2,
-            height=altura_grafico,
-            plot_bgcolor='rgba(0,0,0,0)',  # Fundo transparente
-            paper_bgcolor='rgba(0,0,0,0)',  # Fundo do papel transparente
-            xaxis=dict(
-                showgrid=mostrar_grade,
-                gridwidth=1,
-                gridcolor='rgba(128, 128, 128, 0.2)',  # Cinza semi-transparente
-                zeroline=False,
-                showline=True,
-                linewidth=1,
-                linecolor='rgba(128, 128, 128, 0.2)'
-            ),
-            yaxis=dict(
-                showgrid=mostrar_grade,
-                gridwidth=1,
-                gridcolor='rgba(128, 128, 128, 0.2)',  # Cinza semi-transparente
-                zeroline=False,
-                showline=True,
-                linewidth=1,
-                linecolor='rgba(128, 128, 128, 0.2)'
             )
-        )
-        
-        # Exibir o gráfico
-        st.plotly_chart(fig)
+            
+            # Exibir o gráfico
+            st.plotly_chart(fig)
 
-        # Exibir os dados em formato de texto
-        for option in secondary_options:
-            st.write(f"**{option}:** {secondary_percentages[option]:.1f}% | {secondary_metric}: {secondary_metric_values[option]}")
+            # Exibir os dados em formato de texto
+            for option in secondary_options:
+                # Converter os valores para string para evitar erros de tipo
+                option_str = str(option)
+                percentage_str = f"{secondary_percentages[option]:.1f}%"
+                metric_value_str = str(secondary_metric_values[option])
+                st.write(f"**{option_str}:** {percentage_str} | {secondary_metric}: {metric_value_str}")
     except Exception as e:
         st.error(f"Erro ao processar o filtro secundário: {str(e)}")
 
