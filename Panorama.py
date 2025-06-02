@@ -358,11 +358,14 @@ if secondary_filter:
     try:
         if secondary_filter in filtros_disponiveis:
             secondary_column = filtros_disponiveis[secondary_filter]
-            secondary_options = filtered_data[secondary_column].unique()
+            # Remove valores NaN antes de obter valores únicos e converte para lista
+            secondary_options = list(filtered_data[secondary_column].dropna().unique())
             secondary_percentages = {}
             secondary_metric_values = {}
             for option in secondary_options:
-                secondary_filtered = filtered_data[filtered_data[secondary_column] == option]
+                # Garante que a comparação seja segura com valores NaN
+                mask = filtered_data[secondary_column] == option
+                secondary_filtered = filtered_data[mask]
                 secondary_weight = secondary_filtered['weight'].sum()
                 secondary_percentage = (secondary_weight / filtered_weight) * 100
                 secondary_percentages[option] = secondary_percentage
@@ -377,18 +380,37 @@ if secondary_filter:
                     for option in json_filters[json_column][question]:
                         if option != 'Todos':
                             try:
-                                secondary_filtered = filtered_data[filtered_data[json_column].apply(
-                                    lambda x: isinstance(x, str) and any(
-                                        isinstance(item, dict) and 'label' in item and 'value' in item and
-                                        item['label'] == question and item['value'] == option 
-                                        for item in json.loads(x.replace("'", '"')) if x and not x.isspace()
-                                    )
-                                )]
-                                secondary_weight = secondary_filtered['weight'].sum()
-                                secondary_percentage = (secondary_weight / filtered_weight) * 100
-                                secondary_percentages[f"{question}: {option}"] = secondary_percentage
-                                secondary_metric_values[f"{question}: {option}"] = calcular_metrica_seguro(secondary_filtered, metric_options[secondary_metric])
-                                secondary_options.append(f"{question}: {option}")
+                                def check_json_condition(x):
+                                    # Verificação mais robusta para evitar ambiguidade de array
+                                    if not isinstance(x, str):
+                                        return False
+                                    if not x or x.isspace():
+                                        return False
+                                    try:
+                                        json_data = json.loads(x.replace("'", '"'))
+                                        if not isinstance(json_data, list):
+                                            return False
+                                        return any(
+                                            isinstance(item, dict) and 
+                                            'label' in item and 
+                                            'value' in item and
+                                            item['label'] == question and 
+                                            item['value'] == option 
+                                            for item in json_data
+                                        )
+                                    except (json.JSONDecodeError, AttributeError, TypeError):
+                                        return False
+                                
+                                # Aplicar a função de verificação
+                                mask = filtered_data[json_column].apply(check_json_condition)
+                                secondary_filtered = filtered_data[mask]
+                                
+                                if len(secondary_filtered) > 0:  # Só processa se há dados
+                                    secondary_weight = secondary_filtered['weight'].sum()
+                                    secondary_percentage = (secondary_weight / filtered_weight) * 100
+                                    secondary_percentages[f"{question}: {option}"] = secondary_percentage
+                                    secondary_metric_values[f"{question}: {option}"] = calcular_metrica_seguro(secondary_filtered, metric_options[secondary_metric])
+                                    secondary_options.append(f"{question}: {option}")
                             except Exception as e:
                                 st.error(f"Erro ao processar filtro secundário para {question}: {option}: {str(e)}")
             else:
@@ -398,7 +420,7 @@ if secondary_filter:
                 secondary_metric_values = {}
 
         # Só executa esta parte se houver opções secundárias para mostrar
-        if secondary_options:
+        if len(secondary_options) > 0:
             st.subheader(f"Distribuição por {secondary_filter}")
             
             # Criar o gráfico de barras
@@ -510,7 +532,11 @@ if secondary_filter:
                 percentage_str = f"{secondary_percentages[option]:.1f}%"
                 metric_value_str = str(secondary_metric_values[option])
                 st.write(f"**{option_str}:** {percentage_str} | {secondary_metric}: {metric_value_str}")
+        else:
+            st.info(f"Nenhum dado encontrado para o filtro secundário '{secondary_filter}' com os filtros atuais.")
     except Exception as e:
         st.error(f"Erro ao processar o filtro secundário: {str(e)}")
+        import traceback
+        st.text(traceback.format_exc())
 
 st.divider()
